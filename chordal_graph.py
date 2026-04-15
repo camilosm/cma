@@ -2,7 +2,9 @@
 
 import random
 import time
+
 import networkx as nx
+import matplotlib.pyplot as plt
 
 def generate_subtree(tree, growth_prob, rng):
     start = rng.choice(list(tree.nodes))
@@ -50,6 +52,12 @@ def build_chordal_graph(num_variables, num_tree_nodes, growth_prob, seed, weight
     assert nx.is_chordal(G), "Generated graph is not chordal, this should never happen"
 
     return G
+
+def plot_graph(G: nx.Graph):
+    colors = [ G.nodes[v].get("color", "grey") for v in G.nodes ]
+    pos = nx.spring_layout(G, seed=13)
+    nx.draw_networkx(G, pos, node_color=colors)
+    plt.show()
 
 def print_dot(G: nx.Graph):
     print("graph G {")
