@@ -1,7 +1,13 @@
-from gurobipy import Model, GRB
+import gurobipy as gp
 import networkx as nx
 
-def solve_wgc(G: nx.Graph):
+ENV = gp.Env(empty=True)
+ENV.setParam("OutputFlag", 0)
+ENV.setParam("Threads", 1)
+ENV.setParam("TimeLimit", 60)
+ENV.start()
+
+def solve_wgc(G: nx.Graph, env: gp.Env=ENV):
     """
     Solves Weighted Graph Coloring via the Representative Formulation.
     Assumes G is chordal and has a 'weight' attribute on each node.
@@ -10,20 +16,24 @@ def solve_wgc(G: nx.Graph):
     w = nx.get_node_attributes(G, 'weight')
     cliques = list(nx.chordal_graph_cliques(G))
 
-    m = Model()
+    m = gp.Model(env=ENV)
 
     # x[u,v] = 1 if u is the representative of v
     # u can represent v only if w(u) >= w(v)
     x = {
-        (u, v): m.addVar(vtype=GRB.BINARY, name=f"x_{u}_{v}")
+        (u, v): m.addVar(vtype=gp.GRB.BINARY, name=f"x_{u}_{v}")
         for u in V
         for v in V
         if w[u] >= w[v]
     }
 
-    m.update()
+    # (1) objective: minimize total weight of representatives
+    m.setObjective(
+        sum(w[u] * x[u, u] for u in V if (u, u) in x),
+        gp.GRB.MINIMIZE
+    )
 
-    # (1) each vertex is assigned to exactly one representative
+    # (2) each vertex is assigned to exactly one representative
     for v in V:
         m.addConstr(
             sum(x[u, v] for u in V if (u, v) in x) == 1,
@@ -36,21 +46,15 @@ def solve_wgc(G: nx.Graph):
             m.addConstr(x[u, v] <= x[u, u], name=f"rep_{u}_{v}")
 
     # (3) clique constraints: within each maximal clique,
-    #     each representative u can appear at most once
+    # each representative u can appear at most once
     for u in V:
         for i, clique in enumerate(cliques):
-            clique_vars = [x[u, v] for v in clique if (u, v) in x]
+            clique_vars = [ x[u, v] for v in clique if (u, v) in x ]
             if len(clique_vars) >= 2:
                 m.addConstr(
                     sum(clique_vars) <= 1,
                     name=f"clique_{u}_{i}"
                 )
-
-    # objective: minimize total weight of representatives
-    m.setObjective(
-        sum(w[u] * x[u, u] for u in V if (u, u) in x),
-        GRB.MINIMIZE
-    )
 
     m.optimize()
 
