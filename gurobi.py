@@ -16,7 +16,7 @@ def solve_wgc(G: nx.Graph, env: gp.Env=ENV):
     w = nx.get_node_attributes(G, 'weight')
     cliques = list(nx.chordal_graph_cliques(G))
 
-    m = gp.Model(env=ENV)
+    m = gp.Model(env=env)
 
     # x[u,v] = 1 if u is the representative of v
     # u can represent v only if w(u) >= w(v)
