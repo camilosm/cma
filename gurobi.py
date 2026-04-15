@@ -58,4 +58,43 @@ def solve_wgc(G: nx.Graph, env: gp.Env=ENV):
 
     m.optimize()
 
-    return m
+    print("\n=== Solution Summary ===")
+    if m.status == gp.GRB.OPTIMAL:
+        # extract solution
+        assignment = {
+            (u, v): x[u, v].X
+            for (u, v) in x
+            if x[u, v].X > 0.5
+        }
+
+        # build representative -> vertices mapping
+        rep_to_vertices = {}
+        for (u, v), val in assignment.items():
+            if u not in rep_to_vertices:
+                rep_to_vertices[u] = []
+            rep_to_vertices[u].append(v)
+
+        # assign colors (just integer labels)
+        color_map = {}
+        for color_id, (rep, vertices) in enumerate(rep_to_vertices.items()):
+            for v in vertices:
+                color_map[v] = color_id
+
+        # annotate graph
+        nx.set_node_attributes(G, color_map, "color")
+
+        # optional: also store representative
+        nx.set_node_attributes(G, {
+            v: u for (u, v) in assignment
+        }, "representative")
+
+        # print summary
+        print(f"Objective (total weight): {m.objVal}")
+        print(f"Number of colors: {len(rep_to_vertices)}")
+        for i, (rep, vertices) in enumerate(rep_to_vertices.items()):
+            print(f"Color {i}: (rep {rep}, weight={w[rep]}): {vertices}")
+
+        return True
+    else:
+        print("No optimal solution found.")
+        return False
