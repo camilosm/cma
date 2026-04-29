@@ -32,7 +32,7 @@ def build_intersection_graph(subtrees):
 
     return G
 
-def build_chordal_graph(num_variables, num_tree_nodes, growth_prob, seed, weight_choices=(1, 2, 4, 8)):
+def build_chordal_graph(num_variables, num_tree_nodes, growth_prob, seed, weight_choices=None):
     """
     Builds a random chordal graph via the subtree intersection method.
     Node weights are stored as a 'weight' attribute on each node.
@@ -40,13 +40,21 @@ def build_chordal_graph(num_variables, num_tree_nodes, growth_prob, seed, weight
     Returns:
         G: nx.Graph with node attribute 'weight'
     """
-    rng = random.Random(seed)
+    if weight_choices is None:
+        weight_choices = list(range(1, 1000))
 
-    weights = [ rng.choice(weight_choices) for _ in range(num_variables) ]
-    tree = nx.random_labeled_rooted_tree(num_tree_nodes, seed=rng.randint(0, 2**31))
-    subtrees = [ generate_subtree(tree, growth_prob, rng) for _ in range(num_variables) ]
+    rng_weight = random.Random(seed)
+    weights = [ rng_weight.choice(weight_choices) for _ in range(num_variables) ]
 
-    G = build_intersection_graph(subtrees)
+    rng_graph = random.Random(seed)
+    while True:
+        tree = nx.random_labeled_rooted_tree(num_tree_nodes, seed=rng_graph.randint(0, 2**31))
+        subtrees = [ generate_subtree(tree, growth_prob, rng_graph) for _ in range(num_variables) ]
+        G = build_intersection_graph(subtrees)
+        # graph with only one component
+        if nx.is_connected(G):
+            break
+    
     nx.set_node_attributes(G, dict(enumerate(weights)), name='weight')
 
     assert nx.is_chordal(G), "Generated graph is not chordal, this should never happen"
