@@ -7,59 +7,86 @@ ENV.setParam("Threads", 1)
 ENV.setParam("TimeLimit", 60)
 ENV.start()
 
-def solve_wgc(G: nx.Graph, env: gp.Env=ENV):
+def weighted_coloring(G: nx.Graph, env: gp.Env = ENV) -> bool:
     """
-    Solves Weighted Graph Coloring via the Representative Formulation.
+    Solves Vertex-Weighted Graph Coloring via the Representative Formulation.
     Assumes G is chordal and has a 'weight' attribute on each node.
+
+    Variables:
+        x[v, u]: binary, 1 if v is the representative of u
+        y[v]: weight of the heaviest vertex in v's color class
+
+    The model uses a vertex ordering by weights to break symmetry:
+        v can represent u only if W[v] >= W[u]
     """
+
     V = list(G.nodes)
-    w = nx.get_node_attributes(G, 'weight')
-    cliques = list(nx.chordal_graph_cliques(G))
+    W = nx.get_node_attributes(G, "weight")
+    # order vertices by weight (ascending), breaking ties by vertex id
+    # v can represent u only if order[v] <= order[u].
+    order = { v: (W[v], v) for v in V }
 
-    m = gp.Model(env=env)
+    model = gp.Model(env=env)
 
-    # x[u,v] = 1 if u is the representative of v
-    # u can represent v only if w(u) >= w(v)
+    def N_closed_minus(v):
+        return [ u for u in V if not G.has_edge(u, v) and order[u] < order[v] ] + [ v ]
+
+    def N_closed_plus(v):
+        return [ v ] + [ u for u in V if not G.has_edge(u, v) and order[u] > order[v] ]
+
     x = {
-        (u, v): m.addVar(vtype=gp.GRB.BINARY, name=f"x_{u}_{v}")
-        for u in V
+        (v, u): model.addVar(vtype=gp.GRB.BINARY, name=f"x_{v}_{u}")
         for v in V
-        if w[u] >= w[v]
+        for u in N_closed_plus(v)
     }
 
-    # (1) objective: minimize total weight of representatives
-    m.setObjective(
-        sum(w[u] * x[u, u] for u in V if (u, u) in x),
-        gp.GRB.MINIMIZE
-    )
+    y = {
+        v: model.addVar(vtype=gp.GRB.CONTINUOUS, lb=0, name=f"y_{v}")
+        for v in V
+    }
 
-    # (2) each vertex is assigned to exactly one representative
+    # (wc:obj): minimize sum of y_v
+    model.setObjective(gp.quicksum(y[v] for v in V), gp.GRB.MINIMIZE)
+
+    # (wc:cover) each vertex receives exactly one representative
     for v in V:
-        m.addConstr(
-            sum(x[u, v] for u in V if (u, v) in x) == 1,
-            name=f"assign_{v}"
+        model.addConstr(
+            gp.quicksum(x[u, v] for u in N_closed_minus(v)) == 1,
+            name=f"cover_{v}"
         )
 
-    # (2) a vertex can only be assigned to u if u is a representative
-    for u, v in x:
-        if u != v:
-            m.addConstr(x[u, v] <= x[u, u], name=f"rep_{u}_{v}")
+    # # (wc:edge) adjacent vertices cannot share a representative
+    # for v in V:
+    #     sub = G.subgraph([u for u in N_closed_plus(v) if u != v])
+    #     for u, w in sub.edges():
+    #         model.addConstr(
+    #             x[v, u] + x[v, w] <= x[v, v],
+    #             name=f"edge_{v}_{u}_{w}"
+    #         )
 
-    # (3) clique constraints: within each maximal clique,
-    # each representative u can appear at most once
-    for u in V:
-        for i, clique in enumerate(cliques):
-            clique_vars = [ x[u, v] for v in clique if (u, v) in x ]
-            if len(clique_vars) >= 2:
-                m.addConstr(
-                    sum(clique_vars) <= 1,
-                    name=f"clique_{u}_{i}"
-                )
+    # (wc:edge) vertices in the same clique can't share a representative
+    for v in V:
+        sub = G.subgraph([u for u in N_closed_plus(v) if u != v])
+        for clique in nx.chordal_graph_cliques(sub):
+            model.addConstr(
+                gp.quicksum(x[v, u] for u in clique) <= x[v, v],
+                name=f"clique_{v}_{'_'.join(map(str, clique))}"
+            )
 
-    m.optimize()
+    # (wc:conti) y[v] >= w[u] * x[v, u]
+    for v in V:
+        for u in N_closed_plus(v):
+            model.addConstr(
+                y[v] >= W[u] * x[v, u],
+                name=f"weight_{v}_{u}"
+            )
+
+    # (wc:limits) already encoded in the binary variable x
+
+    model.optimize()
 
     print("\n=== Solution Summary ===")
-    if m.status == gp.GRB.OPTIMAL:
+    if model.status == gp.GRB.OPTIMAL:
         # extract solution
         assignment = {
             (u, v): x[u, v].X
@@ -89,10 +116,10 @@ def solve_wgc(G: nx.Graph, env: gp.Env=ENV):
         }, "representative")
 
         # print summary
-        print(f"Objective (total weight): {m.objVal}")
+        print(f"Objective (total weight): {model.objVal}")
         print(f"Number of colors: {len(rep_to_vertices)}")
         for i, (rep, vertices) in enumerate(rep_to_vertices.items()):
-            print(f"Color {i}: (rep {rep}, weight={w[rep]}): {vertices}")
+            print(f"Color {i}: (rep {rep}, weight={W[rep]}): {vertices}")
 
         return True
     else:
