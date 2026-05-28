@@ -85,43 +85,63 @@ def weighted_coloring(G: nx.Graph, env: gp.Env = ENV) -> bool:
 
     model.optimize()
 
-    print("\n=== Solution Summary ===")
-    if model.status == gp.GRB.OPTIMAL:
-        # extract solution
-        assignment = {
-            (u, v): x[u, v].X
-            for (u, v) in x
-            if x[u, v].X > 0.5
-        }
+    print("\n=== Solver Metrics ===")
+    print(f"Status      : {model.status}")
+    print(f"Runtime     : {model.Runtime:.4f} s")
+    print(f"Variables   : {model.NumVars}")
+    print(f"Constraints : {model.NumConstrs}")
+    print(f"Nonzeros    : {model.NumNZs}")
+    print(f"Nodes       : {model.NodeCount}")
+    print(f"Iterations  : {model.IterCount:.0f}")
+    print(f"Solutions   : {model.SolCount}")
+    if model.SolCount > 0:
+        print(f"Objective   : {model.objVal:.4f}")
+        print(f"Best Bound  : {model.ObjBound:.4f}")
+        print(f"MIP Gap     : {model.MIPGap:.6f}")
 
-        # build representative -> vertices mapping
-        rep_to_vertices = {}
-        for (u, v), val in assignment.items():
-            if u not in rep_to_vertices:
-                rep_to_vertices[u] = []
-            rep_to_vertices[u].append(v)
-
-        # assign colors (just integer labels)
-        color_map = {}
-        for color_id, (rep, vertices) in enumerate(rep_to_vertices.items()):
-            for v in vertices:
-                color_map[v] = color_id
-
-        # annotate graph
-        nx.set_node_attributes(G, color_map, "color")
-
-        # optional: also store representative
-        nx.set_node_attributes(G, {
-            v: u for (u, v) in assignment
-        }, "representative")
-
-        # print summary
-        print(f"Objective (total weight): {model.objVal}")
-        print(f"Number of colors: {len(rep_to_vertices)}")
-        for i, (rep, vertices) in enumerate(rep_to_vertices.items()):
-            print(f"Color {i}: (rep {rep}, weight={W[rep]}): {vertices}")
-
-        return True
-    else:
+    if model.status != gp.GRB.OPTIMAL:
         print("No optimal solution found.")
         return False
+
+    # build { representative: [members] }
+    rep_to_vertices = {
+        v: {v} for (v, u), var in x.items()
+        if v == u and var.X > 0.5
+    }
+    for (v, u), var in x.items():
+        if v != u and var.X > 0.5:
+            rep_to_vertices[v].add(u)
+
+    # rep_to_vertices = {}
+    # for (v, u), var in x.items():
+    #     if var.X > 0.5:
+    #         if v not in rep_to_vertices:
+    #             rep_to_vertices[v] = {u}
+    #         else:
+    #             rep_to_vertices[v].add(u)
+
+    # verify coverage
+    assigned = [ u for members in rep_to_vertices.values() for u in members ]
+    assert len(assigned) == len(V), "There are unassigned vertices."
+    assert len(set(assigned)) == len(assigned), "There are doubly assigned vertices."
+
+    # set nodes atttributes (color and representative)
+    color_map, rep_map = {}, {}
+    for color_id, (rep, members) in enumerate(rep_to_vertices.items()):
+        for v in members:
+            color_map[v] = color_id
+            rep_map[v] = rep
+    nx.set_node_attributes(G, color_map, "color")
+    nx.set_node_attributes(G, rep_map,   "representative")
+
+    print("\n=== Solution ===")
+    print(f"Number of colors: {len(rep_to_vertices)}")
+    for color_id, (rep, members) in enumerate(rep_to_vertices.items()):
+        heaviest = max(members, key=lambda u: W[u])
+        print(
+            f"  Color {color_id}: rep={rep}, "
+            f"heaviest={heaviest} (w={W[heaviest]}), "
+            f"members={members}"
+        )
+
+    return True
