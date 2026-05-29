@@ -54,7 +54,7 @@ def build_chordal_graph(num_variables, num_tree_nodes, growth_prob, seed, weight
         # graph with only one component
         if nx.is_connected(G):
             break
-    
+
     nx.set_node_attributes(G, dict(enumerate(weights)), name='weight')
 
     assert nx.is_chordal(G), "Generated graph is not chordal, this should never happen"
