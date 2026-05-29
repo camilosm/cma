@@ -145,3 +145,122 @@ def weighted_coloring(G: nx.Graph, env: gp.Env = ENV) -> bool:
         )
 
     return True
+
+def consecutive_coloring(G: nx.Graph, k: int = None, env: gp.Env = ENV):
+    """
+    Solves Vertex-Weighted Graph Coloring via Consecutive Coloring.
+    Assumes G is chordal and has a 'weight' attribute on each node.
+
+    Variables:
+        x[v, i]: binary, 1 if v is assigned first color i
+        y: total number of colors used (makespan)
+
+    Objective:
+        minimize maximum used memory position.
+
+    Each vertex v occupies a consecutive block of w_v colors,
+    starting at some i <= k - w_v,
+    and adjacent vertices cannot share any color in their block.
+    """
+
+    V = list(G.nodes)
+    W = nx.get_node_attributes(G, "weight")
+    # upper bound (all blocks placed sequentially):
+    if k is None:
+        k = sum(W[v] for v in V)
+    # valid start positions: i_v <= k - w_v
+    I = { v: range(k - W[v] + 1) for v in V }
+
+    model = gp.Model(name="consecutive_coloring", env=env)
+
+    x = {
+        (v, i): model.addVar(vtype=gp.GRB.BINARY, name=f"x_{v}_{i}")
+        for v in V
+        for i in I[v]
+    }
+
+    y = model.addVar(vtype=gp.GRB.CONTINUOUS, lb=0, name="y")
+
+    # cc:obj
+    model.setObjective(y, gp.GRB.MINIMIZE)
+
+    # cc:cover
+    for v in V:
+        model.addConstr(
+            gp.quicksum(x[v, i] for i in I[v]) == 1,
+            name=f"cover_{v}"
+        )
+
+    # cc:edge
+    for v, u in G.edges():
+        for fixed, neighbor in [ (v, u), (u, v) ]:
+            for i in I[fixed]:
+                overlap = [
+                    x[neighbor, i + j]
+                    for j in range(W[fixed])
+                    if (i + j) in I[neighbor]
+                ]
+                if overlap:
+                    model.addConstr(
+                        x[fixed, i] + gp.quicksum(overlap) <= 1,
+                        name=f"edge_{fixed}_{neighbor}_{i}"
+                    )
+
+    # cc:conti
+    for v in V:
+        model.addConstr(
+            y >= gp.quicksum(
+                (i + W[v]) * x[v, i]
+                for i in I[v]
+            ),
+            name=f"makespan_{v}"
+        )
+
+    # (wc:limits) already encoded in the binary variable x
+
+    model.optimize()
+
+    print("\n=== Solver Metrics ===")
+    print(f"Status      : {model.status}")
+    print(f"Runtime     : {model.Runtime:.4f} s")
+    print(f"Variables   : {model.NumVars}")
+    print(f"Constraints : {model.NumConstrs}")
+    print(f"Nonzeros    : {model.NumNZs}")
+    print(f"Nodes       : {model.NodeCount}")
+    print(f"Iterations  : {model.IterCount:.0f}")
+    print(f"Solutions   : {model.SolCount}")
+    if model.SolCount > 0:
+        print(f"Objective   : {model.objVal:.4f}")
+        print(f"Best Bound  : {model.ObjBound:.4f}")
+        print(f"MIP Gap     : {model.MIPGap:.6f}")
+    else:
+        print("No feasible solution found.")
+        return False
+
+    # extract solution
+    start = {}
+    for v in V:
+        for i in I[v]:
+            if x[v, i].X > 0.5:
+                start[v] = i
+                break
+
+    blocks = {
+        v: list(range(start[v], start[v] + W[v]))
+        for v in V
+    }
+
+    nx.set_node_attributes(G, start, "color")
+    nx.set_node_attributes(G, blocks, "color_block")
+
+    print("\n=== Solution ===")
+    print(f"Memory used: {int(round(y.X))}")
+
+    for v in sorted(V):
+        print(
+            f"Vertex {v}: "
+            f"start={start[v]}, "
+            f"block={blocks[v]}"
+        )
+
+    return True
