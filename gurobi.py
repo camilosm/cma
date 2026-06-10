@@ -6,7 +6,6 @@ from math import gcd
 ENV = gp.Env(empty=True)
 ENV.setParam("OutputFlag", 0)
 ENV.setParam("Threads", 1)
-ENV.setParam("TimeLimit", 60)
 ENV.start()
 
 def weighted_coloring(G: nx.Graph, env: gp.Env = ENV) -> bool:
@@ -18,6 +17,9 @@ def weighted_coloring(G: nx.Graph, env: gp.Env = ENV) -> bool:
         x[v, u]: binary, 1 if v is the representative of u
         y[v]: weight of the heaviest vertex in v's color class
 
+    Objetive:
+        minimize the total weight of the colors (sum of y)
+
     The model uses a vertex ordering by weights to break symmetry:
         v can represent u only if W[v] >= W[u]
     """
@@ -25,10 +27,10 @@ def weighted_coloring(G: nx.Graph, env: gp.Env = ENV) -> bool:
     V = list(G.nodes)
     W = nx.get_node_attributes(G, "weight")
     # order vertices by weight (ascending), breaking ties by vertex id
-    # v can represent u only if order[v] <= order[u].
+    # v can represent u only if order[v] >= order[u].
     order = { v: (W[v], v) for v in V }
 
-    model = gp.Model(env=env)
+    model = gp.Model(name="weighted_coloring", env=env)
 
     def N_closed_minus(v):
         return [ u for u in V if not G.has_edge(u, v) and order[u] < order[v] ] + [ v ]
@@ -100,6 +102,9 @@ def weighted_coloring(G: nx.Graph, env: gp.Env = ENV) -> bool:
         print(f"Objective   : {model.objVal:.4f}")
         print(f"Best Bound  : {model.ObjBound:.4f}")
         print(f"MIP Gap     : {model.MIPGap:.6f}")
+    else:
+        print("No feasible solution found.")
+        return False
 
     if model.status != gp.GRB.OPTIMAL:
         print("No optimal solution found.")
@@ -158,7 +163,7 @@ def consecutive_coloring(G: nx.Graph, k: int = None, env: gp.Env = ENV):
         y: total number of colors used (makespan)
 
     Objective:
-        minimize maximum used memory position.
+        minimize maximum used memory position
 
     Each vertex v occupies a consecutive block of w_v colors,
     starting at some i <= k - w_v,
@@ -220,7 +225,7 @@ def consecutive_coloring(G: nx.Graph, k: int = None, env: gp.Env = ENV):
             name=f"makespan_{v}"
         )
 
-    # (wc:limits) already encoded in the binary variable x
+    # (cc:limits) already encoded in the binary variable x
 
     model.optimize()
 
@@ -239,6 +244,10 @@ def consecutive_coloring(G: nx.Graph, k: int = None, env: gp.Env = ENV):
         print(f"MIP Gap     : {model.MIPGap:.6f}")
     else:
         print("No feasible solution found.")
+        return False
+
+    if model.status != gp.GRB.OPTIMAL:
+        print("No optimal solution found.")
         return False
 
     # extract solution
