@@ -1,8 +1,6 @@
 import gurobipy as gp
 import networkx as nx
 
-from math import gcd
-
 ENV = gp.Env(empty=True)
 ENV.setParam("OutputFlag", 0)
 ENV.setParam("Threads", 1)
@@ -172,8 +170,6 @@ def consecutive_coloring(G: nx.Graph, k: int = None, env: gp.Env = ENV):
 
     V = list(G.nodes)
     W = nx.get_node_attributes(G, "weight")
-    W_gcd = gcd(*(W.values()))
-    W = { v: W[v] // W_gcd for v in V }
     # upper bound (all blocks placed sequentially):
     if k is None:
         k = sum(W[v] for v in V)
@@ -255,11 +251,11 @@ def consecutive_coloring(G: nx.Graph, k: int = None, env: gp.Env = ENV):
     for v in V:
         for i in I[v]:
             if x[v, i].X > 0.5:
-                start[v] = i * W_gcd
+                start[v] = i
                 break
 
     blocks = {
-        v: list(range(start[v], start[v] + W[v] * W_gcd))
+        v: list(range(start[v], start[v] + W[v]))
         for v in V
     }
 
@@ -267,7 +263,7 @@ def consecutive_coloring(G: nx.Graph, k: int = None, env: gp.Env = ENV):
     nx.set_node_attributes(G, blocks, "color_block")
 
     print("\n=== Solution ===")
-    print(f"Memory used: {int(round(y.X)) * W_gcd}")
+    print(f"Memory used: {int(round(y.X))}")
 
     for v in sorted(V):
         print(

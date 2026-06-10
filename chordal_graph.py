@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import math
 import random
 import time
 
@@ -60,6 +61,29 @@ def build_chordal_graph(num_variables, num_tree_nodes, growth_prob, seed, weight
     assert nx.is_chordal(G), "Generated graph is not chordal, this should never happen"
 
     return G
+
+def scale_graph(G: nx.Graph, factor: int, direction: str) -> nx.Graph:
+    """
+    Returns a copy of G with scaled vertex weights, according to the direction:
+        up: w' = w * factor
+        down: w' = ceil(w / factor)
+    """
+    if factor <= 0:
+        raise ValueError(f"factor must be positive, got {factor}")
+
+    H = G.copy()
+    W = nx.get_node_attributes(H, "weight")
+
+    if direction == "up":
+        new_W = { v: w * factor for v, w in W.items() }
+    elif direction == "down":
+        new_W = { v: math.ceil(w / factor) for v, w in W.items() }
+    else:
+        raise ValueError(f"Invalid scaling direction: {direction}")
+
+    nx.set_node_attributes(H, new_W, "weight")
+
+    return H
 
 def plot_graph(G: nx.Graph):
     colors = [ G.nodes[v].get("color", "grey") for v in G.nodes ]
