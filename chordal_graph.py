@@ -116,8 +116,10 @@ def split_graph(G: nx.Graph, p: float) -> tuple[nx.Graph, nx.Graph]:
 
 def plot_graph(G: nx.Graph):
     colors = [ G.nodes[v].get("color", "grey") for v in G.nodes ]
+    labels = { v: f"{v} ({G.nodes[v]['weight']})" for v in G.nodes }
+    sizes = [ len(labels[v])**2 * 50 for v in G ]
     pos = nx.spring_layout(G, seed=13)
-    nx.draw_networkx(G, pos, node_color=colors)
+    nx.draw_networkx(G, pos, node_color=colors, labels=labels, node_size=sizes)
     plt.show()
 
 def print_dot(G: nx.Graph):
