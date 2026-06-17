@@ -85,6 +85,35 @@ def scale_graph(G: nx.Graph, factor: int, direction: str) -> nx.Graph:
 
     return H
 
+def split_graph(G: nx.Graph, p: float) -> tuple[nx.Graph, nx.Graph]:
+    """
+    Splits G into two subgraphs based on a cutoff weight c, computed as:
+    c = p * w[h], where h is G's heaviest node and w[h] its weight.
+    G1 (G2) receives nodes with weight < (≥) c.
+
+    Args:
+        G:  Input graph with a 'weight' node attribute.
+        p:  Fraction in (0, 1] used to compute the cutoff.
+
+    Returns:
+        (G1, G2): induced subgraphs sharing G's edge structure.
+    """
+    if not (0 < p <= 1):
+        raise ValueError(f"p must be in (0, 1], got {p}")
+
+    weights = nx.get_node_attributes(G, "weight")
+
+    max_weight = max(weights.values())
+    cutoff = p * max_weight
+
+    light = [ v for v, w in weights.items() if w < cutoff ]
+    heavy = [ v for v, w in weights.items() if w >= cutoff ]
+
+    G1 = G.subgraph(light).copy()
+    G2 = G.subgraph(heavy).copy()
+
+    return G1, G2
+
 def plot_graph(G: nx.Graph):
     colors = [ G.nodes[v].get("color", "grey") for v in G.nodes ]
     pos = nx.spring_layout(G, seed=13)
