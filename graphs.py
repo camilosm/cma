@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import colorsys
 import math
 import random
 import time
@@ -124,15 +125,23 @@ def plot_graph(G: nx.Graph):
 
 def print_dot(G: nx.Graph):
     print("graph G {")
-    for u, data in G.nodes(data=True):
-        print(f'    {u} [label="{u} ({data["weight"]})"];')
+    for v, data in G.nodes(data=True):
+        color = data.get("color")
+        if color is not None:
+            GOLDEN_ANGLE = 0.6180339887
+            hue = (color * GOLDEN_ANGLE) % 1
+            r, g, b = colorsys.hsv_to_rgb(hue, 1, 1)
+            color = f"{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
+            print(rf'    {v} [label="{v}\n({data["weight"]})", style=filled, fillcolor="#{color}"];')
+        else:
+            print(rf'    {v} [label="{v}\n({data["weight"]})"];')
     for u, v in G.edges():
         print(f"    {u} -- {v};")
     print("}")
 
 if __name__ == '__main__':
-    # SEED = 13
     SEED = int(time.time())
+    # SEED = 13
     print(f"# Seed: {SEED}")
 
     NUM_VARIABLES = 20
@@ -140,6 +149,9 @@ if __name__ == '__main__':
     SUBTREE_GROWTH_PROB = 0.4
 
     cg = build_chordal_graph(NUM_VARIABLES, NUM_TREE_NODES, SUBTREE_GROWTH_PROB, SEED)
+
+    coloring = nx.coloring.greedy_color(cg)
+    nx.set_node_attributes(cg, coloring, name="color")
 
     print_dot(cg)
 
