@@ -146,21 +146,25 @@ def plot_graph(G: nx.Graph):
     nx.draw_networkx(G, pos, node_color=colors, labels=labels, node_size=900, node_shape='s')
     plt.show()
 
-# check for conflict with blowed up graph
 def print_dot(G: nx.Graph):
+    id = lambda v : v if type(v) is int else f'"{v}"'
     print("graph G {")
     for v, data in G.nodes(data=True):
+        line = rf'    {id(v)} [ label="{v}\n({data['weight']})"'
+
         color = data.get("color")
         if color is not None:
             GOLDEN_ANGLE = 0.6180339887
             hue = (color * GOLDEN_ANGLE) % 1
             r, g, b = colorsys.hsv_to_rgb(hue, 1, 1)
             color = f"{int(r * 255):02x}{int(g * 255):02x}{int(b * 255):02x}"
-            print(rf'    {v} [label="{v}\n({data["weight"]})", style=filled, fillcolor="#{color}"];')
-        else:
-            print(rf'    {v} [label="{v}\n({data["weight"]})"];')
+            line += f', style=filled, fillcolor="#{color}"'
+
+        line += " ];"
+        print(line)
+
     for u, v in G.edges():
-        print(f"    {u} -- {v};")
+        print(f"    {id(u)} -- {id(v)};")
     print("}")
 
 if __name__ == '__main__':
@@ -182,6 +186,7 @@ if __name__ == '__main__':
     coloring = nx.coloring.greedy_color(eg)
     nx.set_node_attributes(eg, coloring, name="color")
     plot_graph(eg)
+    print_dot(eg)
 
     cliques = list(nx.chordal_graph_cliques(cg))
     print(f"# {len(cliques)} maximal cliques found")
