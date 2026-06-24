@@ -115,6 +115,29 @@ def split_graph(G: nx.Graph, p: float) -> tuple[nx.Graph, nx.Graph]:
 
     return G1, G2
 
+def blowup_graph(G: nx.Graph) -> nx.Graph:
+    """
+    Blows up each vertex v (of weight w[v]) into a clique of w[v] nodes of weight 1.
+    Original edges become complete joins between the corresponding cliques.
+    Each new node gets an 'origin' attribute pointing back to v.
+    Preserves chordality.
+    """
+    weights = nx.get_node_attributes(G, "weight")
+
+    H = nx.Graph()
+    cliques = {}
+
+    for v, w in weights.items():
+        nodes = [ (v, i) for i in range(w) ]
+        cliques[v] = nodes
+        H.add_nodes_from(nodes, weight=1, origin=v)
+        H.add_edges_from( (a, b) for i, a in enumerate(nodes) for b in nodes[i + 1:] )
+
+    for u, v in G.edges():
+        H.add_edges_from( (a, b) for a in cliques[u] for b in cliques[v] )
+
+    return H
+
 def plot_graph(G: nx.Graph):
     colors = [ G.nodes[v].get("color", "grey") for v in G.nodes ]
     labels = { v: f"$\\mathbf{{{v}}}$\n{G.nodes[v]['weight']}" for v in G.nodes }
@@ -123,6 +146,7 @@ def plot_graph(G: nx.Graph):
     nx.draw_networkx(G, pos, node_color=colors, labels=labels, node_size=900, node_shape='s')
     plt.show()
 
+# check for conflict with blowed up graph
 def print_dot(G: nx.Graph):
     print("graph G {")
     for v, data in G.nodes(data=True):
@@ -144,16 +168,20 @@ if __name__ == '__main__':
     # SEED = 13
     print(f"# Seed: {SEED}")
 
-    NUM_VARIABLES = 20
-    NUM_TREE_NODES = 15
+    NUM_VARIABLES = 5
+    NUM_TREE_NODES = 5
     SUBTREE_GROWTH_PROB = 0.4
 
-    cg = build_chordal_graph(NUM_VARIABLES, NUM_TREE_NODES, SUBTREE_GROWTH_PROB, SEED)
+    cg = build_chordal_graph(NUM_VARIABLES, NUM_TREE_NODES, SUBTREE_GROWTH_PROB, SEED, (1,2))
+    plot_graph(cg)
 
-    coloring = nx.coloring.greedy_color(cg)
-    nx.set_node_attributes(cg, coloring, name="color")
+    eg = blowup_graph(cg)
+    assert nx.is_chordal(eg)
+    plot_graph(eg)
 
-    print_dot(cg)
+    coloring = nx.coloring.greedy_color(eg)
+    nx.set_node_attributes(eg, coloring, name="color")
+    plot_graph(eg)
 
     cliques = list(nx.chordal_graph_cliques(cg))
     print(f"# {len(cliques)} maximal cliques found")
