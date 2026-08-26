@@ -138,6 +138,40 @@ def blowup_graph(G: nx.Graph) -> nx.Graph:
 
     return H
 
+def regroup_graph(G: nx.Graph) -> nx.Graph:
+    """
+    Inverse of blowup_graph: contracts nodes sharing the same 'origin'
+    attribute into a single node per origin, with weight equal to the
+    group size. An edge is added between two origins iff at least one
+    edge exists between their respective node groups in G.
+
+    If nodes carry a 'color' attribute, the origin's 'color_block'
+    attribute is set to the list of colors used within its group, and
+    'color' to the minimum color in that block. The block isn't
+    guaranteed consecutive.
+    """
+    origins = nx.get_node_attributes(G, "origin")
+    colors = nx.get_node_attributes(G, "color")
+
+    groups = {}
+    for v, o in origins.items():
+        groups.setdefault(o, []).append(v)
+
+    H = nx.Graph()
+    for o, nodes in groups.items():
+        attrs = { "weight": len(nodes) }
+        if colors:
+            block = [ colors[n] for n in nodes ]
+            attrs["color_block"] = block
+            attrs["color"] = min(block)
+        H.add_node(o, **attrs)
+
+    for u, v in G.edges():
+        if origins[u] != origins[v]:
+            H.add_edge(origins[u], origins[v])
+
+    return H
+
 def plot_graph(G: nx.Graph):
     colors = [ G.nodes[v].get("color", "grey") for v in G.nodes ]
     labels = { v: f"$\\mathbf{{{v}}}$\n{G.nodes[v]['weight']}" for v in G.nodes }
@@ -176,7 +210,7 @@ if __name__ == '__main__':
     NUM_TREE_NODES = 5
     SUBTREE_GROWTH_PROB = 0.4
 
-    cg = build_chordal_graph(NUM_VARIABLES, NUM_TREE_NODES, SUBTREE_GROWTH_PROB, SEED, (1,2))
+    cg = build_chordal_graph(NUM_VARIABLES, NUM_TREE_NODES, SUBTREE_GROWTH_PROB, SEED, (1,2,4))
     plot_graph(cg)
 
     bg = blowup_graph(cg)
@@ -187,7 +221,10 @@ if __name__ == '__main__':
     nx.set_node_attributes(bg, coloring, name="color")
     plot_graph(bg)
 
-    print_dot(bg)
+    rg = regroup_graph(bg)
+    plot_graph(rg)
+
+    print_dot(rg)
 
     cliques = list(nx.chordal_graph_cliques(cg))
     print(f"# {len(cliques)} maximal cliques found")
