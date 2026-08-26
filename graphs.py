@@ -70,7 +70,7 @@ def scale_graph(G: nx.Graph, factor: int, direction: str) -> nx.Graph:
         down: w' = ceil(w / factor)
     """
     if factor <= 0:
-        raise ValueError(f"factor must be positive, got {factor}")
+        raise ValueError(f"Factor must be positive, got: {factor}")
 
     H = G.copy()
     W = nx.get_node_attributes(H, "weight")
@@ -179,14 +179,15 @@ if __name__ == '__main__':
     cg = build_chordal_graph(NUM_VARIABLES, NUM_TREE_NODES, SUBTREE_GROWTH_PROB, SEED, (1,2))
     plot_graph(cg)
 
-    eg = blowup_graph(cg)
-    assert nx.is_chordal(eg)
-    plot_graph(eg)
+    bg = blowup_graph(cg)
+    assert nx.is_chordal(bg)
+    plot_graph(bg)
 
-    coloring = nx.coloring.greedy_color(eg)
-    nx.set_node_attributes(eg, coloring, name="color")
-    plot_graph(eg)
-    print_dot(eg)
+    coloring = nx.coloring.greedy_color(bg)
+    nx.set_node_attributes(bg, coloring, name="color")
+    plot_graph(bg)
+
+    print_dot(bg)
 
     cliques = list(nx.chordal_graph_cliques(cg))
     print(f"# {len(cliques)} maximal cliques found")

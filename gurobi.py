@@ -25,7 +25,7 @@ def weighted_coloring(G: nx.Graph, env: gp.Env = ENV) -> bool:
     V = list(G.nodes)
     W = nx.get_node_attributes(G, "weight")
     # order vertices by weight (ascending), breaking ties by vertex id
-    # v can represent u only if order[v] >= order[u].
+    # v can represent u only if order[v] >= order[u]
     order = { v: (W[v], v) for v in V }
 
     model = gp.Model(name="weighted_coloring", env=env)
