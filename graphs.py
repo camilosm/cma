@@ -34,7 +34,7 @@ def build_intersection_graph(subtrees):
 
     return G
 
-def build_chordal_graph(num_variables, num_tree_nodes, growth_prob, seed, weight_choices=None):
+def build_chordal_graph(num_nodes, num_tree_nodes, growth_prob, seed, weight_choices=None):
     """
     Builds a random chordal graph via the subtree intersection method.
     Node weights are stored as a 'weight' attribute on each node.
@@ -46,12 +46,12 @@ def build_chordal_graph(num_variables, num_tree_nodes, growth_prob, seed, weight
         weight_choices = list(range(1, 1000))
 
     rng_weight = random.Random(seed)
-    weights = [ rng_weight.choice(weight_choices) for _ in range(num_variables) ]
+    weights = [ rng_weight.choice(weight_choices) for _ in range(num_nodes) ]
 
     rng_graph = random.Random(seed)
     while True:
         tree = nx.random_labeled_rooted_tree(num_tree_nodes, seed=rng_graph.randint(0, 2**31))
-        subtrees = [ generate_subtree(tree, growth_prob, rng_graph) for _ in range(num_variables) ]
+        subtrees = [ generate_subtree(tree, growth_prob, rng_graph) for _ in range(num_nodes) ]
         G = build_intersection_graph(subtrees)
         # graph with only one component
         if nx.is_connected(G):
@@ -176,6 +176,7 @@ def plot_graph(G: nx.Graph):
     colors = [ G.nodes[v].get("color", "grey") for v in G.nodes ]
     labels = { v: f"$\\mathbf{{{v}}}$\n{G.nodes[v]['weight']}" for v in G.nodes }
     # sizes = [ len(labels[v])**2 * 50 for v in G ]
+    plt.figure(num="cma")
     pos = nx.spring_layout(G, seed=13)
     nx.draw_networkx(G, pos, node_color=colors, labels=labels, node_size=900, node_shape='s')
     plt.show()
@@ -206,25 +207,25 @@ if __name__ == '__main__':
     # SEED = 13
     print(f"# Seed: {SEED}")
 
-    NUM_VARIABLES = 5
+    NUM_NODES = 10
     NUM_TREE_NODES = 5
     SUBTREE_GROWTH_PROB = 0.4
 
-    cg = build_chordal_graph(NUM_VARIABLES, NUM_TREE_NODES, SUBTREE_GROWTH_PROB, SEED, (1,2,4))
-    plot_graph(cg)
+    g = build_chordal_graph(NUM_NODES, NUM_TREE_NODES, SUBTREE_GROWTH_PROB, SEED, (1,2,4))
+    plot_graph(g)
 
-    bg = blowup_graph(cg)
-    assert nx.is_chordal(bg)
-    plot_graph(bg)
+    g = blowup_graph(g)
+    assert nx.is_chordal(g)
+    plot_graph(g)
 
-    coloring = nx.coloring.greedy_color(bg)
-    nx.set_node_attributes(bg, coloring, name="color")
-    plot_graph(bg)
+    coloring = nx.coloring.greedy_color(g)
+    nx.set_node_attributes(g, coloring, name="color")
+    plot_graph(g)
 
-    rg = regroup_graph(bg)
-    plot_graph(rg)
+    g = regroup_graph(g)
+    plot_graph(g)
 
-    print_dot(rg)
+    print_dot(g)
 
-    cliques = list(nx.chordal_graph_cliques(cg))
+    cliques = list(nx.chordal_graph_cliques(g))
     print(f"# {len(cliques)} maximal cliques found")
