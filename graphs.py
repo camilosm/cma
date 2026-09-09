@@ -172,6 +172,54 @@ def regroup_graph(G: nx.Graph) -> nx.Graph:
 
     return H
 
+def consecutivize_colors(G: nx.Graph) -> nx.Graph:
+    """
+    Rewrites each node's 'color_block' (from regroup_graph) to be internally
+    consecutive, shifting later-processed blocks up just enough to stay out
+    of an earlier fix's way. Only adjacent nodes' blocks need to stay
+    disjoint (guaranteed by blowup_graph's complete join between origins,
+    see assert below) — non-adjacent nodes are free to keep sharing colors,
+    ties included. Correctness pass, not an optimizer; compaction is separate.
+    """
+    H = G.copy()
+    blocks = { v: sorted(G.nodes[v]["color_block"]) for v in H.nodes }
+
+    def is_consecutive(block):
+        return block == list(range(block[0], block[0] + len(block)))
+
+    order = sorted(H.nodes, key=lambda v: blocks[v][0])
+    gapped_count = sum(1 for v in order if not is_consecutive(blocks[v]))
+    print(f"consecutivize_colors: {gapped_count}/{len(order)} node(s) non-consecutive before repair")
+
+    for n, p in enumerate(order):
+        b = blocks[p]
+        if is_consecutive(b):
+            continue
+        m = b[0]
+
+        prefix_len = 0
+        while prefix_len < len(b) and b[prefix_len] == m + prefix_len:
+            prefix_len += 1
+
+        amount = len(b) - prefix_len
+        blocks[p] = list(range(m, m + len(b)))
+
+        for q in order[n + 1:]:
+            blocks[q] = [ c + amount for c in blocks[q] ]
+
+        print(f"consecutivize_colors: fixed {p} -> {blocks[p]}, shifted {len(order) - n - 1} subsequent node(s) by {amount}")
+
+    for v in H.nodes:
+        H.nodes[v]["color_block"] = sorted(blocks[v])
+        H.nodes[v]["color"] = min(blocks[v])
+
+    assert all(not (set(blocks[u]) & set(blocks[v])) for u, v in H.edges()), "adjacent origins ended up sharing a color"
+
+    still_gapped = sum(1 for v in H.nodes if not is_consecutive(blocks[v]))
+    print(f"consecutivize_colors: {still_gapped}/{H.number_of_nodes()} node(s) still non-consecutive")
+
+    return H
+
 def plot_graph(G: nx.Graph):
     colors = [ G.nodes[v].get("color", "grey") for v in G.nodes ]
     labels = { v: f"$\\mathbf{{{v}}}$\n{G.nodes[v]['weight']}" for v in G.nodes }
@@ -223,6 +271,9 @@ if __name__ == '__main__':
     plot_graph(g)
 
     g = regroup_graph(g)
+    plot_graph(g)
+
+    g = consecutivize_colors(g)
     plot_graph(g)
 
     print_dot(g)
